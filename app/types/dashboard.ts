@@ -1,7 +1,7 @@
 export interface NavigationItem {
   href: string;
   label: string;
-  icon: React.ComponentType;
+  icon: React.ComponentType<{ className?: string }>;
 }
 
 export interface DashboardLayoutProps {
