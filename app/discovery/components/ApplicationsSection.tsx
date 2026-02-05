@@ -16,7 +16,7 @@ export default function ApplicationsSection() {
       setLoading(true);
       setError(null);
 
-      const response = await fetch('/api/applications', {
+      const response = await fetch('/api/wafie.v1.ApplicationService/ListApplications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

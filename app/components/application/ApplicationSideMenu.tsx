@@ -55,7 +55,7 @@ export function ApplicationSideMenu({ application, onClose }: ApplicationSideMen
         {onClose && (
           <button
             onClick={onClose}
-            className="btn btn-ghost btn-sm"
+            className="btn btn-ghost btn-sm lg:hidden"
             aria-label="Close application menu"
           >
             <AiOutlineClose className="text-base" />

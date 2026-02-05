@@ -30,14 +30,26 @@ function getApplicationPageTitle(subPath: string): string {
 }
 
 async function getApplicationName(id: string): Promise<string> {
-  // Mock function - in real implementation, this would fetch from API
-  const mockApplications: Record<string, string> = {
-    '1': 'E-commerce Frontend',
-    '2': 'User Authentication API',
-    '3': 'Payment Processing Service'
-  };
+  try {
+    const response = await fetch(`/api/wafie.v1.ApplicationService/GetApplication`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id: parseInt(id) }),
+    });
 
-  return mockApplications[id] || `Application ${id}`;
+    if (!response.ok) {
+      console.error('Failed to fetch application name:', response.status);
+      return `Application ${id}`;
+    }
+
+    const data = await response.json();
+    return data.application?.name || `Application ${id}`;
+  } catch (error) {
+    console.error('Error fetching application name:', error);
+    return `Application ${id}`;
+  }
 }
 
 export function TopNavbar() {
@@ -78,26 +90,53 @@ export function TopNavbar() {
   return (
     <nav className="navbar bg-base-100 border-b border-base-200 shadow-sm sticky top-0 z-40">
       <div className="navbar-start">
-        <label
-          htmlFor="dashboard-drawer"
-          className="btn btn-ghost btn-circle lg:hidden"
-          aria-label="Open menu"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        {/* Main Menu Hamburger - shown when NOT in application pages */}
+        {!isApplicationPage && (
+          <label
+            htmlFor="dashboard-drawer"
+            className="btn btn-ghost btn-circle lg:hidden"
+            aria-label="Open main menu"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h7"
-            />
-          </svg>
-        </label>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h7"
+              />
+            </svg>
+          </label>
+        )}
+
+        {/* Application Sub-Menu Hamburger - shown when IN application pages */}
+        {isApplicationPage && (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('toggleApplicationMenu'))}
+            className="btn btn-ghost btn-circle lg:hidden"
+            aria-label="Open application menu"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"
+              />
+            </svg>
+          </button>
+        )}
         {isApplicationPage ? (
           <div className="breadcrumbs text-sm ml-2 lg:ml-0">
             <ul>

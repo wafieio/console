@@ -10,52 +10,30 @@ interface ApplicationLayoutWrapperProps {
   params: Promise<{ id: string }>;
 }
 
-// Mock function to fetch application data - replace with actual API call
-function getApplication(id: string): Application | null {
-  const mockApplications: Application[] = [
-    {
-      id: 1,
-      name: 'E-commerce Frontend',
-      ingress: [
-        {
-          name: 'ecommerce-ingress',
-          namespace: 'production',
-          host: 'shop.example.com',
-          path: '/',
-          discoveryStatus: 'protected'
-        }
-      ]
-    },
-    {
-      id: 2,
-      name: 'User Authentication API',
-      ingress: [
-        {
-          name: 'auth-api-ingress',
-          namespace: 'auth',
-          host: 'api.example.com',
-          path: '/auth',
-          discoveryStatus: 'unprotected'
-        }
-      ]
-    },
-    {
-      id: 3,
-      name: 'Payment Processing Service',
-      ingress: [
-        {
-          name: 'payment-ingress',
-          namespace: 'payments',
-          host: 'payments.example.com',
-          path: '/',
-          discoveryStatus: 'protected'
-        }
-      ]
-    }
-  ];
+// Real API function to fetch application data
+async function getApplication(id: string): Promise<Application | null> {
+  try {
+    const response = await fetch(`/api/wafie.v1.ApplicationService/GetApplication`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ id: parseInt(id, 10) }),
+    });
 
-  const numericId = parseInt(id, 10);
-  return mockApplications.find(app => app.id === numericId) || null;
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      throw new Error(`API call failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.application || null;
+  } catch (error) {
+    console.error('Error fetching application:', error);
+    throw error;
+  }
 }
 
 export function ApplicationLayoutWrapper({ children, params }: ApplicationLayoutWrapperProps) {
@@ -67,7 +45,7 @@ export function ApplicationLayoutWrapper({ children, params }: ApplicationLayout
     const loadApplication = async () => {
       try {
         const resolvedParams = await params;
-        const app = getApplication(resolvedParams.id);
+        const app = await getApplication(resolvedParams.id);
         if (!app) {
           setError('Application not found');
           setLoading(false);
@@ -75,7 +53,8 @@ export function ApplicationLayoutWrapper({ children, params }: ApplicationLayout
         }
         setApplication(app);
         setLoading(false);
-      } catch (err) {
+      } catch (error) {
+        console.error('Failed to load application:', error);
         setError('Failed to load application');
         setLoading(false);
       }
