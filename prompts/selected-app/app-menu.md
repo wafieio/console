@@ -9,4 +9,3 @@ The application level menu should include the following entries:
 * Basic Authentication 
 * Token Authentication 
 * IP Rules 
-For each menu entry create sample page 

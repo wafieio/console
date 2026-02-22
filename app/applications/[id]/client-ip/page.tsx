@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, use } from 'react';
+import React, { useState, useEffect, use, useCallback } from 'react';
 
 // Metadata moved to layout since this is now a client component
 
@@ -28,6 +28,15 @@ interface XFFResponse {
   'x-forwarded-for': string;
 }
 
+interface ProtectionResponse {
+  protection: {
+    id: number;
+    applicationId: number;
+    protectionMode: 'PROTECTION_MODE_ON' | 'PROTECTION_MODE_OFF';
+    desiredState: object;
+  };
+}
+
 interface NetworkHop {
   ip: string;
   index: number;
@@ -48,44 +57,12 @@ export default function ClientIPPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingXFF, setLoadingXFF] = useState(false);
+  const [protectionId, setProtectionId] = useState<number | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchApplicationData();
-  }, [applicationId]);
-
-  const fetchApplicationData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch('/api/wafie.v1.ApplicationService/GetApplication', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ id: applicationId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to fetch application: ${response.status}`);
-      }
-
-      const data: ApplicationResponse = await response.json();
-      setApplication(data.application);
-
-      // Fetch XFF data once we have application info
-      if (data.application.ingress?.[0]) {
-        await fetchXFFData(data.application);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch application data');
-      console.error('Error fetching application:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchXFFData = async (app: Application) => {
+  const fetchXFFData = useCallback(async (app: Application) => {
     try {
       setLoadingXFF(true);
       const ingress = app.ingress[0];
@@ -123,6 +100,113 @@ export default function ClientIPPage({
       // Don't set main error state for XFF failures
     } finally {
       setLoadingXFF(false);
+    }
+  }, [selectedHopIndex]);
+
+  const fetchApplicationData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch('/api/wafie.v1.ApplicationService/GetApplication', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: applicationId }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch application: ${response.status}`);
+      }
+
+      const data: ApplicationResponse = await response.json();
+      setApplication(data.application);
+
+      // Fetch XFF data once we have application info
+      if (data.application.ingress?.[0]) {
+        await fetchXFFData(data.application);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch application data');
+      console.error('Error fetching application:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [applicationId, fetchXFFData]);
+
+  const fetchProtectionData = useCallback(async () => {
+    try {
+      const response = await fetch('/api/wafie.v1.ProtectionService/GetProtection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ application_id: applicationId }),
+      });
+
+      if (response.status === 404) {
+        // Protection not found - this is normal for new applications
+        setProtectionId(null);
+        return;
+      }
+
+      if (!response.ok) {
+        console.error('Protection API call failed:', response.status);
+        setProtectionId(null);
+        return;
+      }
+
+      const data: ProtectionResponse = await response.json();
+      setProtectionId(data.protection.id);
+    } catch (error) {
+      console.error('Error fetching protection data:', error);
+      setProtectionId(null);
+    }
+  }, [applicationId]);
+
+  useEffect(() => {
+    fetchApplicationData();
+    fetchProtectionData();
+  }, [fetchApplicationData, fetchProtectionData]);
+
+  const saveConfiguration = async () => {
+    if (!protectionId) {
+      setSaveError('Protection ID not available. Please refresh the page and try again.');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setSaveError(null);
+      setSaveSuccess(false);
+
+      // Apply the adjustment logic: if selectedHopIndex > 0, send selectedHopIndex - 1, otherwise send 0
+      const adjustedHopIndex = selectedHopIndex > 0 ? selectedHopIndex - 1 : 0;
+
+      const response = await fetch('/api/wafie.v1.ProtectionService/PutProtection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: protectionId,
+          xff_num_trusted_hops: adjustedHopIndex
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save configuration: ${response.status}`);
+      }
+
+      setSaveSuccess(true);
+      // Clear success message after 3 seconds
+      setTimeout(() => setSaveSuccess(false), 3000);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save configuration');
+      console.error('Error saving configuration:', error);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -191,6 +275,11 @@ export default function ClientIPPage({
           onIndexChange={handleHopSelection}
           onRefresh={() => application && fetchXFFData(application)}
           isRefreshing={loadingXFF}
+          onSave={saveConfiguration}
+          isSaving={saving}
+          saveSuccess={saveSuccess}
+          saveError={saveError}
+          protectionId={protectionId}
         />
       )}
 
@@ -227,12 +316,46 @@ interface NetworkFlowDiagramProps {
   onIndexChange: (index: number) => void;
   onRefresh: () => void;
   isRefreshing: boolean;
+  onSave: () => void;
+  isSaving: boolean;
+  saveSuccess: boolean;
+  saveError: string | null;
+  protectionId: number | null;
 }
 
-function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, isRefreshing }: NetworkFlowDiagramProps) {
+function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, isRefreshing, onSave, isSaving, saveSuccess, saveError, protectionId }: NetworkFlowDiagramProps) {
   // State for manual editing
   const [isManualEdit, setIsManualEdit] = useState(false);
   const [manualIndexInput, setManualIndexInput] = useState<string>('');
+
+  // Generate combined list of real and pseudo IPs for visualization
+  const getDisplayIps = () => {
+    const displayIps: Array<{ip: string, isPseudo: boolean, index: number}> = [];
+
+    // Add real IPs (in reverse order for display)
+    for (let i = 0; i < xffIps.length; i++) {
+      displayIps.push({
+        ip: xffIps[xffIps.length - 1 - i],
+        isPseudo: false,
+        index: xffIps.length - i
+      });
+    }
+
+    // Add pseudo IPs if selected index is higher than available IPs
+    if (selectedIndex > xffIps.length) {
+      for (let i = xffIps.length + 1; i <= selectedIndex; i++) {
+        displayIps.unshift({
+          ip: `pseudo-proxy-${i}.example.com`,
+          isPseudo: true,
+          index: i
+        });
+      }
+    }
+
+    return displayIps;
+  };
+
+  const displayIps = getDisplayIps();
 
   return (
     <div className="card bg-base-100 shadow-md">
@@ -264,25 +387,23 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
               index={0}
             />
 
-            {/* XFF Hops (rendered right to left as per indexing) */}
-            {xffIps.map((ip, arrayIndex) => {
-              // Calculate reverse index (right to left, starting from 1)
-              const reverseIndex = xffIps.length - arrayIndex;
-              const isSelected = reverseIndex === selectedIndex;
+            {/* XFF Hops (rendered with real and pseudo hops) */}
+            {displayIps.map((hopInfo) => {
+              const isSelected = hopInfo.index === selectedIndex;
 
               return (
-                <React.Fragment key={arrayIndex}>
+                <React.Fragment key={`hop-${hopInfo.index}`}>
                   {/* Arrow */}
                   <NetworkArrow isSelected={isSelected} />
 
                   {/* Hop */}
                   <NetworkHop
-                    title={`Hop ${reverseIndex}`}
-                    ip={ip}
-                    type="proxy"
+                    title={hopInfo.isPseudo ? `Pseudo Hop ${hopInfo.index}` : `Hop ${hopInfo.index}`}
+                    ip={hopInfo.ip}
+                    type={hopInfo.isPseudo ? "pseudo" : "proxy"}
                     isSelected={isSelected}
-                    index={reverseIndex}
-                    onClick={() => onIndexChange(reverseIndex)}
+                    index={hopInfo.index}
+                    onClick={() => onIndexChange(hopInfo.index)}
                   />
                 </React.Fragment>
               );
@@ -307,22 +428,23 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
           <div>
             <h4 className="font-semibold mb-3">Select Trusted Proxy</h4>
             <div className="space-y-2">
-              {xffIps.map((ip, arrayIndex) => {
-                const reverseIndex = xffIps.length - arrayIndex;
+              {displayIps.map((hopInfo) => {
                 return (
-                  <label key={arrayIndex} className="flex items-center gap-3 cursor-pointer hover:bg-base-100 p-2 rounded">
+                  <label key={`radio-${hopInfo.index}`} className={`flex items-center gap-3 cursor-pointer hover:bg-base-100 p-2 rounded ${hopInfo.isPseudo ? 'bg-base-100/50 border border-dashed border-base-content/20' : ''}`}>
                     <input
                       type="radio"
                       name="trustedProxy"
-                      value={reverseIndex}
-                      checked={selectedIndex === reverseIndex}
-                      onChange={() => onIndexChange(reverseIndex)}
+                      value={hopInfo.index}
+                      checked={selectedIndex === hopInfo.index}
+                      onChange={() => onIndexChange(hopInfo.index)}
                       className="radio radio-primary border-2 border-white"
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="badge badge-outline badge-sm">Hop {reverseIndex}</span>
-                        <span className="font-mono text-sm">{ip}</span>
+                        <span className={`badge badge-sm ${hopInfo.isPseudo ? 'badge-outline badge-info' : 'badge-outline'}`}>
+                          {hopInfo.isPseudo ? `Pseudo Hop ${hopInfo.index}` : `Hop ${hopInfo.index}`}
+                        </span>
+                        <span className={`font-mono text-sm ${hopInfo.isPseudo ? 'italic text-info' : ''}`}>{hopInfo.ip}</span>
                       </div>
                     </div>
                   </label>
@@ -344,6 +466,24 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
                 </div>
               </div>
             </div>
+
+            {/* Pseudo Hops Info */}
+            {selectedIndex > xffIps.length && (
+              <div className="mt-4 p-3 bg-info/10 border border-info/20 rounded">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-info mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="text-sm">
+                    <p className="font-semibold">Pseudo Hop Configuration</p>
+                    <p className="text-base-content/70">
+                      You&apos;ve selected hop {selectedIndex}, which exceeds discovered hops ({xffIps.length}).
+                      Pseudo hops help visualize how this configuration would work with additional proxies in your infrastructure.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -365,8 +505,14 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
 
             {!isManualEdit ? (
               <div className="flex items-center gap-2">
-                <span className="badge badge-primary">Hop {selectedIndex}</span>
-                <span className="font-mono">{xffIps[xffIps.length - selectedIndex]}</span>
+                <span className={`badge ${selectedIndex > xffIps.length ? 'badge-info' : 'badge-primary'}`}>
+                  {selectedIndex > xffIps.length ? `Pseudo Hop ${selectedIndex}` : `Hop ${selectedIndex}`}
+                </span>
+                <span className={`font-mono ${selectedIndex > xffIps.length ? 'italic text-info' : ''}`}>
+                  {selectedIndex <= xffIps.length
+                    ? (xffIps[xffIps.length - selectedIndex] || 'Unknown')
+                    : `pseudo-proxy-${selectedIndex}.example.com`}
+                </span>
               </div>
             ) : (
               <div className="space-y-3">
@@ -377,14 +523,13 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
                   <input
                     type="number"
                     min="1"
-                    max={xffIps.length}
                     value={manualIndexInput}
                     onChange={(e) => setManualIndexInput(e.target.value)}
-                    className="input input-sm input-bordered w-20"
+                    className="input input-sm input-bordered w-24"
                     placeholder="1"
                   />
                   <span className="text-sm text-base-content/60">
-                    (1-{xffIps.length})
+                    (Any positive number)
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
@@ -393,11 +538,11 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
                     disabled={
                       !manualIndexInput ||
                       Number(manualIndexInput) < 1 ||
-                      Number(manualIndexInput) > xffIps.length
+                      !Number.isInteger(Number(manualIndexInput))
                     }
                     onClick={() => {
                       const newIndex = Number(manualIndexInput);
-                      if (newIndex >= 1 && newIndex <= xffIps.length) {
+                      if (newIndex >= 1 && Number.isInteger(newIndex)) {
                         onIndexChange(newIndex);
                         setIsManualEdit(false);
                       }
@@ -406,9 +551,11 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
                     Apply
                   </button>
                   <span className="text-sm text-base-content/60">
-                    Preview: {manualIndexInput && Number(manualIndexInput) >= 1 && Number(manualIndexInput) <= xffIps.length
-                      ? xffIps[xffIps.length - Number(manualIndexInput)]
-                      : 'Invalid index'}
+                    Preview: {manualIndexInput && Number(manualIndexInput) >= 1 && Number.isInteger(Number(manualIndexInput))
+                      ? Number(manualIndexInput) <= xffIps.length
+                        ? xffIps[xffIps.length - Number(manualIndexInput)]
+                        : `pseudo-proxy-${manualIndexInput}.example.com (pseudo hop)`
+                      : 'Invalid index (must be positive integer)'}
                   </span>
                 </div>
               </div>
@@ -417,13 +564,41 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
         </div>
 
         {/* Save Button */}
-        <div className="mt-6 flex justify-end">
-          <button className="btn btn-primary">
-            Save Configuration
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </button>
+        <div className="mt-6">
+          {/* Success/Error Messages */}
+          {saveSuccess && (
+            <div className="alert alert-success mb-4">
+              <svg className="w-6 h-6 stroke-current shrink-0" fill="none" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>Configuration saved successfully!</span>
+            </div>
+          )}
+
+          {saveError && (
+            <div className="alert alert-error mb-4">
+              <svg className="w-6 h-6 stroke-current shrink-0" fill="none" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <span>{saveError}</span>
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              className="btn btn-primary"
+              onClick={onSave}
+              disabled={isSaving || !protectionId}
+            >
+              {isSaving && <span className="loading loading-spinner loading-sm"></span>}
+              {isSaving ? 'Saving...' : 'Save Configuration'}
+              {!isSaving && (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -434,7 +609,7 @@ function NetworkFlowDiagram({ xffIps, selectedIndex, onIndexChange, onRefresh, i
 interface NetworkHopProps {
   title: string;
   ip: string;
-  type: 'user' | 'proxy' | 'application';
+  type: 'user' | 'proxy' | 'application' | 'pseudo';
   isSelected: boolean;
   index: number;
   onClick?: () => void;
@@ -462,6 +637,13 @@ function NetworkHop({ title, ip, type, isSelected, onClick }: NetworkHopProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
           </svg>
         );
+      case 'pseudo':
+        return (
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12l2 2 4-4" strokeDasharray="2,2" />
+          </svg>
+        );
     }
   };
 
@@ -470,7 +652,9 @@ function NetworkHop({ title, ip, type, isSelected, onClick }: NetworkHopProps) {
       className={`flex flex-col items-center p-4 rounded-lg transition-all ${
         isSelected
           ? 'bg-primary text-primary-content shadow-lg scale-105'
-          : 'bg-base-200 hover:bg-base-300'
+          : type === 'pseudo'
+            ? 'bg-base-200/50 hover:bg-base-300/50 border-2 border-dashed border-base-content/30'
+            : 'bg-base-200 hover:bg-base-300'
       } ${onClick ? 'cursor-pointer' : ''}`}
       onClick={onClick}
     >

@@ -26,3 +26,14 @@ Example of the JSON BODY:
   * If JSON response has `protection.protectionMode` equals to `PROTECTION_MODE_OFF` meaning the protection for application is OFF
   * If JSON response has `protection.protectionMode` equals to `PROTECTION_MODE_ON` meaning the protection for application is ON
 
+
+
+The Enable Protection in @app/applications/[id]/overview/page.tsx is not clickable when protection id is -1 - this needs to be fixed.                                                                                                                                     
+Protection ID -1 indicated that user can create or enable protection by making API call. 
+To create a protection make an API call to API 
+Use this endpoint: `/wafie.v1.ProtectionService/CreateProtection`
+Use POST method with JSON Body, an example: `{"application_id": 1}` 
+Pass the application id that you fetched when opened the UI page: `/applications/4/overview`
+
+## IMPORTANT `/wafie.v1.ProtectionService/CreateProtection` get called once when protection id is -1. in all other cases, you should continue using `/wafie.v1.ProtectionService/PutProtection` api call with existing logic 
+

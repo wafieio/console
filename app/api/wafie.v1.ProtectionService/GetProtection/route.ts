@@ -25,6 +25,18 @@ export async function POST(request: NextRequest) {
       }),
     });
 
+    // Handle 404 as a legitimate case - protection not enabled for this application
+    if (response.status === 404) {
+      return NextResponse.json({
+        protection: {
+          id: -1, // Placeholder ID for unprotected applications
+          applicationId: application_id,
+          protectionMode: 'PROTECTION_MODE_OFF',
+          desiredState: null
+        }
+      });
+    }
+
     if (!response.ok) {
       return NextResponse.json(
         { error: `Failed to fetch protection: ${response.status} ${response.statusText}` },

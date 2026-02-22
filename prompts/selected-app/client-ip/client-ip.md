@@ -54,3 +54,13 @@
 * The indexes go from the right to the left, starting from 1
 * For example, having "x-forwarded-for": "1.1.1.1, 192.168.64.1", the 192.168.64.1 -> will have index 1, 1.1.1.1 -> will have index 2 and so one
 
+== On click on Save Configuration button do: 
+1. Compose API JSON Body, where `id` is a protection ID and `xff_num_trusted_hops` is selected hop index
+  ```json
+    {
+     "id": 1,
+     "xff_num_trusted_hops": 1
+    }
+  ```
+2. Make PUT api call to the backend, the backend URI: `/wafie.v1.ProtectionService/PutProtection` 
+3. IMPORTANT: you should mirror the requests, first the request go to the Next.JS backend, then to Wafie backend. follow the current implementation as defined here in app/api/wafie.v1.ProtectionService/PutProtection   

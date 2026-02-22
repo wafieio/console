@@ -123,7 +123,7 @@ function processProtectionData(protectionResult: { success: boolean; data?: Prot
 
   return {
     isProtected: isProtectionOn,
-    protectionId: protection.id.toString(),
+    protectionId: protection.id === -1 ? '-' : protection.id.toString(),
     isEnabled: isProtectionOn,
     badgeColor: isProtectionOn ? 'badge-success' : 'badge-error',
     badgeText: isProtectionOn ? 'Protected' : 'Unprotected'
@@ -176,16 +176,53 @@ export default function ApplicationOverviewPage({
 
   // Toggle protection handler
   const handleProtectionToggle = async (enabled: boolean) => {
-    if (protection.protectionId === '-') {
-      setToggleError('No protection ID available');
-      return;
-    }
-
     try {
       setToggleLoading(true);
       setToggleError(null);
       setToggleSuccess(null);
 
+      // Scenario 1: Protection doesn't exist (ID is '-') and user enables → Call CreateProtection API
+      if (protection.protectionId === '-' && enabled) {
+        const response = await fetch('/api/wafie.v1.ProtectionService/CreateProtection', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            application_id: applicationId
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to create protection: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const newProtection = data.protection;
+
+        // Update local state with new protection ID and enabled status
+        setProtection(prev => ({
+          ...prev,
+          protectionId: newProtection.id.toString(),
+          isEnabled: true,
+          isProtected: true,
+          badgeColor: 'badge-success',
+          badgeText: 'Protected'
+        }));
+
+        setToggleSuccess('Protection created and enabled successfully');
+        setTimeout(() => setToggleSuccess(null), 3000);
+        return;
+      }
+
+      // Scenario 2: Protection doesn't exist (ID is '-') and user disables → Show error
+      if (protection.protectionId === '-' && !enabled) {
+        setToggleError('Cannot disable protection that does not exist');
+        setTimeout(() => setToggleError(null), 5000);
+        return;
+      }
+
+      // Scenario 3: Protection exists (ID is not '-') → Use existing PutProtection logic
       const response = await fetch('/api/wafie.v1.ProtectionService/PutProtection', {
         method: 'POST',
         headers: {
@@ -346,7 +383,7 @@ export default function ApplicationOverviewPage({
                     type="checkbox"
                     className="toggle toggle-success toggle-lg"
                     checked={protection.isEnabled}
-                    disabled={toggleLoading || protection.protectionId === '-'}
+                    disabled={toggleLoading}
                     onChange={(e) => handleProtectionToggle(e.target.checked)}
                   />
                 </div>

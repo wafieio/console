@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import {
   AiFillSignal,
   AiFillLock,
@@ -13,6 +14,21 @@ import {
   AiOutlineClose
 } from 'react-icons/ai';
 import type { Application, ApplicationNavigationItem } from '@/app/types/applications';
+
+interface ProtectionResponse {
+  protection: {
+    id: number;
+    applicationId: number;
+    protectionMode: 'PROTECTION_MODE_ON' | 'PROTECTION_MODE_OFF';
+    desiredState: object;
+  };
+}
+
+interface ProtectionStatus {
+  isProtected: boolean;
+  loading: boolean;
+  error: boolean;
+}
 
 interface ApplicationSideMenuProps {
   application: Application;
@@ -28,18 +44,59 @@ const getApplicationMenuItems = (applicationId: number): ApplicationNavigationIt
   { href: `/applications/${applicationId}/ip-rules`, label: 'IP Rules', icon: AiFillLock },
 ];
 
+async function fetchProtectionStatus(applicationId: number): Promise<{ success: boolean; isProtected: boolean }> {
+  try {
+    const response = await fetch('/api/wafie.v1.ProtectionService/GetProtection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ application_id: applicationId }),
+    });
+
+    if (response.status === 404) {
+      return { success: true, isProtected: false };
+    }
+
+    if (!response.ok) {
+      console.error('Protection API call failed:', response.status);
+      return { success: false, isProtected: false };
+    }
+
+    const data: ProtectionResponse = await response.json();
+    return {
+      success: true,
+      isProtected: data.protection.protectionMode === 'PROTECTION_MODE_ON'
+    };
+  } catch (error) {
+    console.error('Error fetching protection status:', error);
+    return { success: false, isProtected: false };
+  }
+}
+
 export function ApplicationSideMenu({ application, onClose }: ApplicationSideMenuProps) {
   const pathname = usePathname();
   const menuItems = getApplicationMenuItems(application.id);
 
-  const getProtectionStatus = () => {
-    const hasProtectedIngress = application.ingress.some(
-      (ing) => ing.discoveryStatus === 'protected'
-    );
-    return hasProtectedIngress ? 'protected' : 'unprotected';
-  };
+  const [protectionStatus, setProtectionStatus] = useState<ProtectionStatus>({
+    isProtected: false,
+    loading: true,
+    error: false
+  });
 
-  const protectionStatus = getProtectionStatus();
+  useEffect(() => {
+    const loadProtectionStatus = async () => {
+      setProtectionStatus(prev => ({ ...prev, loading: true, error: false }));
+
+      const result = await fetchProtectionStatus(application.id);
+
+      setProtectionStatus({
+        isProtected: result.isProtected,
+        loading: false,
+        error: !result.success
+      });
+    };
+
+    loadProtectionStatus();
+  }, [application.id]);
 
   return (
     <aside className="w-64 bg-base-100 border-r border-base-200 shadow-xl h-screen overflow-y-auto">
@@ -69,10 +126,18 @@ export function ApplicationSideMenu({ application, onClose }: ApplicationSideMen
         <div className="flex items-center gap-2 mt-2">
           <span
             className={`badge ${
-              protectionStatus === 'protected' ? 'badge-success' : 'badge-error'
+              protectionStatus.loading
+                ? 'badge-neutral'
+                : protectionStatus.isProtected
+                  ? 'badge-success'
+                  : 'badge-error'
             } text-xs`}
           >
-            {protectionStatus === 'protected' ? 'Protected' : 'Unprotected'}
+            {protectionStatus.loading
+              ? 'Loading...'
+              : protectionStatus.isProtected
+                ? 'Protected'
+                : 'Unprotected'}
           </span>
         </div>
         <p className="text-sm text-base-content/60 mt-2">Security Configuration</p>
