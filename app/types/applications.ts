@@ -10,6 +10,7 @@ export interface Application {
   id: number;
   name: string;
   ingress: Ingress[];
+  protectionMode?: 'PROTECTION_MODE_ON' | 'PROTECTION_MODE_OFF';
 }
 
 export interface ApplicationsResponse {

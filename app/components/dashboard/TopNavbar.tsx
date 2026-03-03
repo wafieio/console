@@ -160,12 +160,12 @@ export function TopNavbar() {
 
       <div className="navbar-end">
         <div className="flex items-center gap-3">
-          <div className="avatar">
-            <div className="w-8 rounded-full bg-primary text-primary-content flex items-center justify-center">
-              <span className="text-sm font-semibold">U</span>
-            </div>
-          </div>
-          <span className="text-sm hidden sm:inline text-base-content">User Name</span>
+          {/*<div className="avatar">*/}
+          {/*  <div className="w-8 rounded-full bg-primary text-primary-content flex items-center justify-center">*/}
+          {/*    <span className="text-sm font-semibold">U</span>*/}
+          {/*  </div>*/}
+          {/*</div>*/}
+          {/*<span className="text-sm hidden sm:inline text-base-content">User Name</span>*/}
         </div>
       </div>
     </nav>

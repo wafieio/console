@@ -5,7 +5,11 @@ import { Application, ApplicationsResponse } from '@/app/types/applications';
 import SearchCard from './SearchCard';
 import ApplicationCard from './ApplicationCard';
 
-export default function ApplicationsSection() {
+interface ApplicationsSectionProps {
+  onApplicationsLoaded?: (applications: Application[]) => void;
+}
+
+export default function ApplicationsSection({ onApplicationsLoaded }: ApplicationsSectionProps) {
   const [applications, setApplications] = useState<Application[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
@@ -33,7 +37,41 @@ export default function ApplicationsSection() {
       }
 
       const data: ApplicationsResponse = await response.json();
-      setApplications(data.applications || []);
+      const apps = data.applications || [];
+
+      // Fetch protection status for each application
+      const appsWithProtection = await Promise.all(
+        apps.map(async (app) => {
+          try {
+            const protectionResponse = await fetch('/api/wafie.v1.ProtectionService/GetProtection', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ application_id: app.id })
+            });
+
+            if (protectionResponse.ok) {
+              const protectionData = await protectionResponse.json();
+              return {
+                ...app,
+                protectionMode: protectionData.protection?.protectionMode
+              };
+            }
+
+            // If protection not found (404) or error, app is unprotected
+            return app;
+          } catch (error) {
+            console.error(`Error fetching protection for app ${app.id}:`, error);
+            return app;
+          }
+        })
+      );
+
+      setApplications(appsWithProtection);
+
+      // Notify parent component about loaded applications
+      if (onApplicationsLoaded) {
+        onApplicationsLoaded(appsWithProtection);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch applications');
       console.error('Error fetching applications:', err);

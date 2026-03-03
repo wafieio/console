@@ -6,14 +6,12 @@ interface ApplicationCardProps {
 }
 
 export default function ApplicationCard({ application }: ApplicationCardProps) {
-  const getProtectionStatus = (ingress: Application['ingress']) => {
-    const hasProtectedIngress = ingress.some(
-      (ing) => ing.discoveryStatus === 'protected'
-    );
-    return hasProtectedIngress ? 'protected' : 'unprotected';
+  const getProtectionStatus = () => {
+    // Check if application has protection mode set to ON
+    return application.protectionMode === 'PROTECTION_MODE_ON' ? 'protected' : 'unprotected';
   };
 
-  const protectionStatus = getProtectionStatus(application.ingress);
+  const protectionStatus = getProtectionStatus();
 
   return (
     <Link href={`/applications/${application.id}/overview`}>

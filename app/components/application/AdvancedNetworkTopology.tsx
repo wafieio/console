@@ -348,7 +348,7 @@ function TrafficFlow({ application, protectionEnabled }: TrafficFlowProps) {
                               fill="none"
                             />
                             {/* Individual paths from junction to each endpoint */}
-                            {displayEndpoints.map((_, index) => {
+                            {displayEndpoints.map((_endpoint: any, index: number) => {
                               // Calculate endpoint Y positions with massive spacing
                               const totalEndpoints = displayEndpoints.length;
                               const spacing = 180; // Massive spacing for giant container
@@ -390,7 +390,7 @@ function TrafficFlow({ application, protectionEnabled }: TrafficFlowProps) {
                           />
 
                           {/* Draw horizontal lines from vertical line to each endpoint */}
-                          {displayEndpoints.map((_, index) => {
+                          {displayEndpoints.map((_endpoint: any, index: number) => {
                             const totalEndpoints = displayEndpoints.length;
                             const spacing = 180; // Same as above - massive spacing
                             const startY = 300 - (totalEndpoints - 1) * (spacing / 2);
@@ -427,7 +427,7 @@ function TrafficFlow({ application, protectionEnabled }: TrafficFlowProps) {
                           </circle>
 
                           {/* Animated packets: Junction to each endpoint */}
-                          {displayEndpoints.map((_, index) => {
+                          {displayEndpoints.map((_endpoint: any, index: number) => {
                             const baseDelay = protectionEnabled ? 0.8 : 0.5; // Extra delay if protection enabled
                             const startDelay1 = (index * timingInterval + baseDelay).toFixed(1);
                             const startDelay2 = (index * timingInterval + baseDelay + 1).toFixed(1);

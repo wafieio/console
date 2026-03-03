@@ -58,6 +58,7 @@ export default function ClientIPPage({
   const [error, setError] = useState<string | null>(null);
   const [loadingXFF, setLoadingXFF] = useState(false);
   const [protectionId, setProtectionId] = useState<number | null>(null);
+  const [protectionMode, setProtectionMode] = useState<'PROTECTION_MODE_ON' | 'PROTECTION_MODE_OFF' | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -123,17 +124,15 @@ export default function ClientIPPage({
       const data: ApplicationResponse = await response.json();
       setApplication(data.application);
 
-      // Fetch XFF data once we have application info
-      if (data.application.ingress?.[0]) {
-        await fetchXFFData(data.application);
-      }
+      // Only fetch XFF data if protection is enabled
+      // Protection data will be fetched separately and XFF will be loaded afterwards
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch application data');
       console.error('Error fetching application:', err);
     } finally {
       setLoading(false);
     }
-  }, [applicationId, fetchXFFData]);
+  }, [applicationId]);
 
   const fetchProtectionData = useCallback(async () => {
     try {
@@ -148,20 +147,24 @@ export default function ClientIPPage({
       if (response.status === 404) {
         // Protection not found - this is normal for new applications
         setProtectionId(null);
+        setProtectionMode(null);
         return;
       }
 
       if (!response.ok) {
         console.error('Protection API call failed:', response.status);
         setProtectionId(null);
+        setProtectionMode(null);
         return;
       }
 
       const data: ProtectionResponse = await response.json();
       setProtectionId(data.protection.id);
+      setProtectionMode(data.protection.protectionMode);
     } catch (error) {
       console.error('Error fetching protection data:', error);
       setProtectionId(null);
+      setProtectionMode(null);
     }
   }, [applicationId]);
 
@@ -169,6 +172,13 @@ export default function ClientIPPage({
     fetchApplicationData();
     fetchProtectionData();
   }, [fetchApplicationData, fetchProtectionData]);
+
+  // Fetch XFF data when protection is enabled
+  useEffect(() => {
+    if (application && protectionMode === 'PROTECTION_MODE_ON') {
+      fetchXFFData(application);
+    }
+  }, [application, protectionMode, fetchXFFData]);
 
   const saveConfiguration = async () => {
     if (!protectionId) {
@@ -258,6 +268,8 @@ export default function ClientIPPage({
     );
   }
 
+  const isProtectionEnabled = protectionMode === 'PROTECTION_MODE_ON';
+
   return (
     <div className="space-y-6">
       <div>
@@ -267,8 +279,28 @@ export default function ClientIPPage({
         </p>
       </div>
 
-      {/* Main Content */}
-      {!loading && !error && networkHops.length > 0 && (
+      {/* Protection Disabled Warning */}
+      {!loading && !error && !isProtectionEnabled && (
+        <div className="card bg-base-100 shadow-md">
+          <div className="card-body">
+            <div className="text-center py-8">
+              <svg className="w-16 h-16 mx-auto mb-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h3 className="text-lg font-semibold mb-2">Protection Not Enabled</h3>
+              <p className="text-base-content/70 mb-4">
+                Client IP detection requires application protection to be enabled. Please enable protection first to use this feature.
+              </p>
+              <a href={`/applications/${applicationId}/overview`} className="btn btn-primary">
+                Go to Application Overview
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Content - Only show when protection is enabled */}
+      {!loading && !error && isProtectionEnabled && networkHops.length > 0 && (
         <NetworkFlowDiagram
           xffIps={networkHops.map(hop => hop.ip)}
           selectedIndex={selectedHopIndex}
@@ -283,8 +315,8 @@ export default function ClientIPPage({
         />
       )}
 
-      {/* No Data State */}
-      {!loading && !error && networkHops.length === 0 && (
+      {/* No Data State - Only show when protection is enabled */}
+      {!loading && !error && isProtectionEnabled && networkHops.length === 0 && (
         <div className="card bg-base-100 shadow-md">
           <div className="card-body">
             <div className="text-center py-8">

@@ -2,13 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { AiFillSignal, AiOutlineSearch, AiFillSetting } from 'react-icons/ai';
+import { AiOutlineSearch } from 'react-icons/ai';
 import type { NavigationItem } from '@/app/types/dashboard';
 
 const menuItems: NavigationItem[] = [
-  { href: '/overview', label: 'Overview', icon: AiFillSignal },
   { href: '/discovery', label: 'Discovery', icon: AiOutlineSearch },
-  { href: '/settings', label: 'Settings', icon: AiFillSetting },
 ];
 
 export default function SideMenu() {

@@ -62,6 +62,7 @@ export default function AntiBotPage({
   const applicationId = parseInt(resolvedParams.id);
 
   const [protectionId, setProtectionId] = useState<number | null>(null);
+  const [protectionMode, setProtectionMode] = useState<'PROTECTION_MODE_ON' | 'PROTECTION_MODE_OFF' | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -96,6 +97,7 @@ export default function AntiBotPage({
 
       if (response.status === 404) {
         setProtectionId(null);
+        setProtectionMode(null);
         return;
       }
 
@@ -107,6 +109,7 @@ export default function AntiBotPage({
 
       const data: ProtectionResponse = await response.json();
       setProtectionId(data.protection.id);
+      setProtectionMode(data.protection.protectionMode);
 
       // Load existing antibot configuration if it exists
       if (data.protection.desiredState.antiBot) {
@@ -301,6 +304,8 @@ export default function AntiBotPage({
     );
   }
 
+  const isProtectionEnabled = protectionMode === 'PROTECTION_MODE_ON';
+
   return (
     <div className="space-y-6">
       <div>
@@ -308,7 +313,29 @@ export default function AntiBotPage({
         <p className="text-base-content/60 mt-2">Configure bot detection and automated traffic filtering</p>
       </div>
 
+      {/* Protection Disabled Warning */}
+      {!isProtectionEnabled && (
+        <div className="card bg-base-100 shadow-md">
+          <div className="card-body">
+            <div className="text-center py-8">
+              <svg className="w-16 h-16 mx-auto mb-4 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h3 className="text-lg font-semibold mb-2">Protection Not Enabled</h3>
+              <p className="text-base-content/70 mb-4">
+                AntiBot protection requires application protection to be enabled. Please enable protection first to use this feature.
+              </p>
+              <a href={`/applications/${applicationId}/overview`} className="btn btn-primary">
+                Go to Application Overview
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Section 1: Enable/Disable AntiBot Protection */}
+      {isProtectionEnabled && (
+      <>
       <div className="card bg-base-100 shadow-md">
         <div className="card-body">
           <h2 className="card-title text-xl mb-4">AntiBot Protection Status</h2>
@@ -577,6 +604,8 @@ export default function AntiBotPage({
           </div>
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
