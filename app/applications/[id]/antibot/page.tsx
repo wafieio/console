@@ -112,7 +112,7 @@ export default function AntiBotPage({
       setProtectionMode(data.protection.protectionMode);
 
       // Load existing antibot configuration if it exists
-      if (data.protection.desiredState.antiBot) {
+      if (data.protection.desiredState && data.protection.desiredState.antiBot) {
         const antiBot = data.protection.desiredState.antiBot;
         setConfig({
           enabled: antiBot.enabled || false,

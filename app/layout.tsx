@@ -18,6 +18,12 @@ export const metadata: Metadata = {
   description: "Kubernetes Native Web Application and API Security Platform",
 };
 
+// Log on server startup
+if (typeof window === 'undefined') {
+  console.log('🚀 Wafie Console Server Started');
+  console.log('📡 WAFIE_API_HOST:', process.env.WAFIE_API_HOST || '(not set)');
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{

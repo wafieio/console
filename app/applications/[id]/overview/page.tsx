@@ -57,7 +57,7 @@ interface ProtectionData {
 // API Functions - Real API calls
 async function fetchApplicationData(id: string): Promise<ApplicationResponse['application'] | null> {
   try {
-    const response = await fetch(`http://localhost:3000/api/wafie.v1.ApplicationService/GetApplication`, {
+    const response = await fetch(`/api/wafie.v1.ApplicationService/GetApplication`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -80,7 +80,7 @@ async function fetchApplicationData(id: string): Promise<ApplicationResponse['ap
 
 async function fetchProtectionData(applicationId: number): Promise<{ success: boolean; data?: ProtectionResponse['protection'] }> {
   try {
-    const response = await fetch(`http://localhost:3000/api/wafie.v1.ProtectionService/GetProtection`, {
+    const response = await fetch(`/api/wafie.v1.ProtectionService/GetProtection`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
